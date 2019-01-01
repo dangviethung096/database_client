@@ -5,8 +5,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <stdlib.h>
-
 #include "lib/client_def.h"
+#include "lib/client_api.h"
 
 
 int client_fd;
@@ -15,12 +15,17 @@ char buffer[BUFFER_SIZE];
 
 int send_data()
 {
+    U8bit message[MAX_LENGTH_MSG];
     memset(buffer, 0, BUFFER_SIZE);
     while(strncmp(buffer, STRING_END_CONNECT, LENGTH_END_CONNECT) != 0)
     {
         printf("Input command: ");
         fgets(buffer, BUFFER_SIZE, stdin);
-        send(client_fd, buffer, BUFFER_SIZE, 0);
+        buffer[strlen(buffer) -1] = '\0';
+        // Parse command
+        int length_send = sql_interpreter((U8bit *)buffer, message);
+        // Send a encoded message
+        send(client_fd, message, length_send, 0);
     }
     return 1;
 }
@@ -40,10 +45,12 @@ int connect_to_server()
     struct sockaddr_in server_address;
     int address_length = sizeof(server_address);
 
-    memset(&server_address, 0, address_length);    
+    memset(&server_address, 0, address_length);   
+    char * ip_address = "127.0.0.1" ;
+    int port = 6969;
     server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = inet_addr("127.0.0.1");
-    server_address.sin_port = htons(6969);
+    server_address.sin_addr.s_addr = inet_addr(ip_address);
+    server_address.sin_port = htons(port);
     
 
     
@@ -53,7 +60,7 @@ int connect_to_server()
         perror("connect fail!");
         exit(EXIT_FAILURE);
     }
-    
+    printf("Connect to %s:%d successful!\n",ip_address, port);
     return 1;
 }
 
