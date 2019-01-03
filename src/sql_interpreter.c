@@ -74,7 +74,7 @@ static int sql_get_word(U8bit * command, int pos, U8bit * word)
                 pos++;
                 key = *(command + pos);
                 word[count++] = key;
-            }while(key != '"');   
+            }while(key != '"');
         }
 
         // Get new key
@@ -251,14 +251,128 @@ inline static int sql_search(U8bit * command, int pos, U8bit * message, int msg_
             }
         }
     }
-
-
+    U8bit end = MSG_END;
+    write_to_message(message, &msg_length, &end, CLIENT_U_8_BIT_SIZE);
     return msg_length;
 }
 
 /* Insert command */
 inline static int sql_insert(U8bit * command, int pos, U8bit * message, int msg_length)
 {
+    // Declare variable
+    U8bit columns[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
+    U8bit values[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
+    U8bit length_table_name = 0;
+    U8bit table_name[CLIENT_MAX_WORD];
+    
+    U8bit num_col = 0;
+    U8bit num_char_col  = 0;
+    U8bit num_val = 0;
+    U8bit num_char_val = 0;
+    U8bit length_word;
+    U8bit word[CLIENT_MAX_WORD];
+    
+    U8bit flag = 0;
+    int i;
+    // Init word
+    word[0] = '\0';
+    while(is_token(word,(U8bit *) INSERT_VALUES_STR) != 0)
+    {
+        pos = sql_get_word(command, pos, word);
+        length_word = length_string(word);
+
+        for(i = 0; i < length_word; i++)
+        {
+            // CLI_TRACE(("CLIENT:sql_insert:word[%d]=%c\n", i, word[i]));
+            if(flag)
+            {
+                if(word[i] == ',' || word[i] == ')')
+                {
+                    columns[num_col][num_char_col] = '\0';
+                    CLI_TRACE(("CLIENT:sql_insert:columns[%d]=%s\n", num_col, columns[num_col]));
+                    num_col++;
+                    num_char_col=0;
+                }else
+                {
+                    columns[num_col][num_char_col++] = word[i];
+                }
+
+            }else
+            {
+                if(word[i] == '(')
+                {
+                    flag = 1;
+                    table_name[length_table_name] = '\0';
+                    CLI_TRACE(("CLIENT:sql_insert:table_name=%s\n", table_name));
+                    // Write length table name
+                    write_to_message(message, &msg_length, &length_table_name, CLIENT_U_8_BIT_SIZE);
+                    // Write table name
+                    write_to_message(message, &msg_length, table_name, length_table_name);
+                }else
+                {
+                    table_name[length_table_name++] = word[i];
+                }
+            }
+            
+        }
+    }
+    // Write to return message field that will have
+    write_to_message(message, &msg_length, &num_col, CLIENT_U_8_BIT_SIZE);
+
+    for(i = 0; i < num_col; i++)
+    {
+        // Write number value
+        U8bit length_field = strlen((char *) columns[i]);
+        write_to_message(message, &msg_length, &length_field, CLIENT_U_8_BIT_SIZE);
+        // Write field name
+        write_to_message(message, &msg_length, columns[i], length_field);
+    }
+
+    // Get value in insert command
+    // Flag for character "
+    flag = 0;
+    // Loop for get
+    while(!sql_is_end(word))
+    {
+        pos = sql_get_word(command, pos, word);
+        length_word = length_string(word);
+        
+        for(i = 0; i < length_word; i++)
+        {
+            if(word[i] == '(')
+            {
+                continue;
+            }
+
+            if(word[i] == ',' || word[i] == ')')
+            {
+                values[num_val][num_char_val] = '\0';
+                CLI_TRACE(("CLIENT:sql_insert:values[%d]=%s\n", num_val, values[num_val]));
+                num_val++;
+                num_char_val = 0;
+            }else
+            {
+                values[num_val][num_char_val++] = word[i];
+            }
+        }
+    }
+
+    for(i = 0; i < num_val; i++)
+    {
+        // Write length values
+        U8bit length_val = strlen((char *) values[i]);
+        write_to_message(message, &msg_length, &length_val, CLIENT_U_8_BIT_SIZE);
+        // Write values
+        write_to_message(message, &msg_length, values[i], length_val);
+    }
+    
+    if(num_val != num_col)
+    {
+        return -1;
+    }
+
+    U8bit end = MSG_END;
+    write_to_message(message, &msg_length, &end, CLIENT_U_8_BIT_SIZE);
 
     return msg_length;
 }
@@ -303,7 +417,16 @@ int sql_interpreter(U8bit * command, U8bit * message)
     }else if(is_token(sql_word,(U8bit *) INSERT_STR) == 0)
     {
         // Insert
-        message[0] = INSERT_CODE;
+        command_code = INSERT_CODE;
+        write_to_message(message, &msg_length, &command_code, CLIENT_U_8_BIT_SIZE);
+        // Insert analyze
+        CLI_TRACE(("CLIENT:sql_interpreter:insert %s\n", command + pos));
+        msg_length = sql_insert(command, pos, message, msg_length);
+        if(msg_length == -1)
+        {
+            CLI_TRACE(("CLIENT:sql_interpreter:Insert error!\n"));
+            return -1;
+        }
         
     }else if(is_token(sql_word,(U8bit *) UPDATE_STR) == 0)
     {

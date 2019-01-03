@@ -6,6 +6,6 @@
 
 /* Proto type */
 int sql_interpreter(U8bit * command, U8bit * message);
-
+int process_message(U8bit * msg, U8bit * ret_msg);
 
 #endif

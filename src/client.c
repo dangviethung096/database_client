@@ -10,22 +10,46 @@
 
 
 int client_fd;
-char buffer[BUFFER_SIZE];
+U8bit msg[MAX_LENGTH_MSG];
+U8bit ret_msg[MAX_LENGTH_MSG];
 
 
 int send_data()
 {
-    U8bit message[MAX_LENGTH_MSG];
-    memset(buffer, 0, BUFFER_SIZE);
-    while(strncmp(buffer, STRING_END_CONNECT, LENGTH_END_CONNECT) != 0)
+    int msg_length, num_send, num_rev;
+    memset(msg, 0, BUFFER_SIZE);
+    while(compare_n_string(msg + 1, STRING_END_CONNECT, LENGTH_END_CONNECT) != 0)
     {
         printf("Input command: ");
-        fgets(buffer, BUFFER_SIZE, stdin);
-        buffer[strlen(buffer) -1] = '\0';
+        fgets((char *) msg + 1, BUFFER_SIZE, stdin);
+        msg[length_string(msg + 1)] = '\0';
+        msg[0] = COMMAND_CODE;
         // Parse command
-        int length_send = sql_interpreter((U8bit *)buffer, message);
-        // Send a encoded message
-        send(client_fd, message, length_send, 0);
+        msg_length = process_message(msg, ret_msg);
+        if(msg_length == -1)
+        {
+            printf("Error!\n");
+            printf("Message: %s\n", msg + 1);
+        }else
+        {
+            // Send a encoded message
+            num_send = send(client_fd, ret_msg, msg_length, 0);
+            if(num_send != msg_length)
+            {
+                printf("Error when send!\n");
+            }
+            
+            num_rev = recv(client_fd, msg, MAX_LENGTH_MSG, 0);
+            if(num_rev > 0)
+            {
+                process_message(msg, ret_msg);
+            }else
+            {
+                printf("Server return nothing!\n");
+            }
+        }
+        
+        
     }
     return 1;
 }
