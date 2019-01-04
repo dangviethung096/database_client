@@ -3,7 +3,7 @@
 #include "lib/client_struct.h"
 #include <string.h>
 
-#define CLIENT_MAX_WORD     50
+#define CLIENT_MAX_WORD     32
 
 int pass_white_space(U8bit * command, int pos)
 {
@@ -48,10 +48,14 @@ int is_token(U8bit * str_a, U8bit * str_b)
 static int sql_is_end(U8bit * word)
 {
     int last_char_index = strlen((const char *) word) - 1;
-    if(word[last_char_index] == ';')
+    if(last_char_index >= 0)
     {
-        return CLIENT_TRUE;
+        if(word[last_char_index] == ';')
+        {
+            return CLIENT_TRUE;
+        }
     }
+
     return CLIENT_FALSE;
 }
 
@@ -82,7 +86,7 @@ static int sql_get_word(U8bit * command, int pos, U8bit * word)
         key = *(command + pos);
     }
     // Check end of command
-    if(key == '\0' && count == 0)
+    if(key == '\0')
     {
         word[count++] = ';';
     }
@@ -94,6 +98,7 @@ static int sql_get_word(U8bit * command, int pos, U8bit * word)
 /* SQL read condition where */
 inline static int sql_read_condition(U8bit * command, int pos, U8bit *message, int * msg_length)
 {
+    CLI_TRACE(("CLIENT:sql_read_condition:rest_command=%s\n", command+pos));
     U8bit word[CLIENT_MAX_WORD];
     U8bit flag = 1;
     U8bit num_cond = 0;
@@ -110,14 +115,17 @@ inline static int sql_read_condition(U8bit * command, int pos, U8bit *message, i
         int length_word = strlen((const char *)word);
         for(i = 0; i < length_word; i++)
         {
-            if(word[i] == ',')
+            if(word[i] == ';')
             {
                 field_cond[num_cond][pos_field] = '\0';
+                CLI_TRACE(("CLIENT:sql_read_condition:field[%d]=%s\n", num_cond, field_cond[num_cond]));
                 val_cond[num_cond][pos_val] = '\0';
+                CLI_TRACE(("CLIENT:sql_read_condition:val[%d]=%s\n", num_cond, val_cond[num_cond]));
                 flag = 1;
                 num_cond++;
                 pos_val = 0;
                 pos_field = 0;
+                break;
             }else if(word[i] == '=')
             {
                 flag = 2;
@@ -136,8 +144,8 @@ inline static int sql_read_condition(U8bit * command, int pos, U8bit *message, i
 
     // Write to message
     // Write num_cond
-    memcpy(message + *msg_length, &num_cond, CLIENT_U_8_BIT_SIZE);
-    *msg_length += CLIENT_U_8_BIT_SIZE;
+    CLI_TRACE(("CLIENT:sql_read_condition:num_cond=%d\n", num_cond));
+    write_to_message(message, msg_length, &num_cond, CLIENT_U_8_BIT_SIZE);
     for(i = 0; i < num_cond; i++)
     {
         // Write length field
@@ -145,6 +153,7 @@ inline static int sql_read_condition(U8bit * command, int pos, U8bit *message, i
         write_to_message(message, msg_length, &field_length, CLIENT_U_8_BIT_SIZE);
         // Write field
         write_to_message(message, msg_length, field_cond[i], field_length);
+        
         // Write length val
         U8bit val_length = strlen((const char *) val_cond[i]);
         write_to_message(message, msg_length, &val_length, CLIENT_U_8_BIT_SIZE);
@@ -152,7 +161,7 @@ inline static int sql_read_condition(U8bit * command, int pos, U8bit *message, i
         write_to_message(message, msg_length, val_cond[i], val_length);
 
     }
-
+    CLI_TRACE(("CLIENT:sql_read_condition:return=%d\n", pos));
     return pos;
 }
 
@@ -161,6 +170,7 @@ inline static int sql_read_condition(U8bit * command, int pos, U8bit *message, i
 /* Search command */
 inline static int sql_search(U8bit * command, int pos, U8bit * message, int msg_length)
 {
+    CLI_TRACE(("CLIENT:sql_search:Select %s\n", command + pos));
     // Declare variable
     U8bit columns[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
     U8bit table_name[CLIENT_MAX_WORD];
@@ -196,42 +206,48 @@ inline static int sql_search(U8bit * command, int pos, U8bit * message, int msg_
 
         pos = sql_get_word(command, pos, word);
     }
-
-    CLI_TRACE(("CLIENT:sql_search:columns[%d]=%s\n", num_col, columns[num_col]));
     columns[num_col][num_char_col] = '\0';
+    CLI_TRACE(("CLIENT:sql_search:columns[%d]=%s\n", num_col, columns[num_col]));
     num_col++;
     // End read column
 
 
-    // Read table
-    CLI_TRACE(("CLIENT:sql_search:Read table\n"));
+    // Read table name
+    CLI_TRACE(("CLIENT:sql_search:Read table name\n"));
     pos = sql_get_word(command, pos, word);
-    if(strlen((const char *) word) > 0)
+    U8bit length_table_name = 0;
+    for(i = 0; i < length_string(word); i++)
     {
-        memcpy(table_name, word, strlen((const char *) word) + 1);
-        /* Copy to message */
-        // Copy length_table to message
-        U8bit tbl_name_length = strlen((const char *) table_name);
-        write_to_message(message, &msg_length, &tbl_name_length, CLIENT_U_8_BIT_SIZE);
-        // Copy table name
-        write_to_message(message, &msg_length, table_name, tbl_name_length);
-        // Copy number column
-        if(columns[0][0] == '*')
+        if(word[i] == ';')
         {
-            num_col = 0;
-        }
-        write_to_message(message, &msg_length, &num_col, CLIENT_U_8_BIT_SIZE);
-        // Copy columns
-        for(i =0; i < num_col; i++)
+            break;
+        }else
         {
-            // Copy length column
-            U8bit length_col = strlen((const char *) columns[i]);
-            write_to_message(message, &msg_length, &length_col, CLIENT_U_8_BIT_SIZE);
-            // Copy length column
-            write_to_message(message, &msg_length, columns[i], length_col);
+            table_name[length_table_name++] = word[i];
         }
-        message[msg_length] = MSG_END;
     }
+    table_name[length_table_name] = '\0';
+    // Write length of table name
+    write_to_message(message, &msg_length, &length_table_name, CLIENT_U_8_BIT_SIZE);
+    // Write table name
+    write_to_message(message, &msg_length, table_name, length_table_name);
+
+    // Copy number column
+    if(columns[0][0] == '*')
+    {
+        num_col = 0;
+    }
+    write_to_message(message, &msg_length, &num_col, CLIENT_U_8_BIT_SIZE);
+    // Copy columns
+    for(i =0; i < num_col; i++)
+    {
+        // Copy length column
+        U8bit length_col = strlen((const char *) columns[i]);
+        write_to_message(message, &msg_length, &length_col, CLIENT_U_8_BIT_SIZE);
+        // Copy length column
+        write_to_message(message, &msg_length, columns[i], length_col);
+    }
+    message[msg_length] = MSG_END;
 
     // Read condition
     CLI_TRACE(("CLIENT:sql_search:Read cond\n"));
@@ -259,6 +275,7 @@ inline static int sql_search(U8bit * command, int pos, U8bit * message, int msg_
 /* Insert command */
 inline static int sql_insert(U8bit * command, int pos, U8bit * message, int msg_length)
 {
+    CLI_TRACE(("CLIENT:sql_insert:INSERT %s\n", command + pos));
     // Declare variable
     U8bit columns[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
     U8bit values[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
@@ -380,12 +397,68 @@ inline static int sql_insert(U8bit * command, int pos, U8bit * message, int msg_
 /* Update command */
 inline static int sql_update(U8bit * command, int pos, U8bit * message, int msg_length)
 {
+    /* Declare variable */
+    U8bit word[CLIENT_MAX_WORD];
+    word[0] = '\0';
+    U8bit length_word = length_string(word);
+    
+    /* Read table_name */
+
+    /* Read values will be updated */
+
+    /* Read conditions */
+    
     return msg_length;
 }
 
 /* Delete command */
 inline static int sql_delete(U8bit * command, int pos, U8bit * message, int msg_length)
 {
+    CLI_TRACE(("CLIENT:sql_delete:Delete %s\n", command + pos));
+    /* Declare variable */
+    U8bit word[CLIENT_MAX_WORD];
+    word[0] = '\0';
+    U8bit length_word = length_string(word);
+    U8bit table_name[CLIENT_MAX_WORD];
+    U8bit length_table_name = 0;
+    int i;
+    /* Get table name will be deleted */
+    pos = sql_get_word(command, pos, word);
+    length_word = length_string(word);
+    /* Get table name */
+    for(i = 0; i < length_word; i++)
+    {
+        if(word[i] == ';')
+        {
+            table_name[length_table_name] = '\0';
+            break;
+        }else
+        {
+            table_name[length_table_name++] = word[i];
+        }
+    }
+
+    CLI_TRACE(("CLIENT:sql_delete:table_name=%s\n", table_name));
+    // Write length of table name
+    write_to_message(message, &msg_length, &length_table_name, CLIENT_U_8_BIT_SIZE);
+    // Write table name
+    write_to_message(message, &msg_length, table_name, length_table_name);
+    
+    /* Read condition */
+    pos = sql_get_word(command, pos, word);
+    length_word = length_string(word);
+    if(is_token(word,(U8bit *) DELETE_COND_STR) == 0)
+    {
+        pos = sql_read_condition(command, pos, message, &msg_length);
+    }else if(word[0] != ';')
+    {
+        CLI_TRACE(("CLIENT:sql_delete:Error string, word=%s\n", word));
+        return -1;
+    }
+
+    U8bit end = MSG_END;
+    write_to_message(message, &msg_length, &end, CLIENT_U_8_BIT_SIZE);
+    CLI_TRACE(("CLIENT:sql_delete:msg_length=%d\n", msg_length));
     return msg_length;
 }
 
@@ -405,8 +478,6 @@ int sql_interpreter(U8bit * command, U8bit * message)
         command_code = SEARCH_CODE;
         write_to_message(message, &msg_length, &command_code, CLIENT_U_8_BIT_SIZE);
         // Search analyze
-        CLI_TRACE(("CLIENT:sql_interpreter:Search with %s\n", command + pos));
-        
         msg_length = sql_search(command, pos, message, msg_length);
         if(msg_length == -1)
         {
@@ -420,7 +491,6 @@ int sql_interpreter(U8bit * command, U8bit * message)
         command_code = INSERT_CODE;
         write_to_message(message, &msg_length, &command_code, CLIENT_U_8_BIT_SIZE);
         // Insert analyze
-        CLI_TRACE(("CLIENT:sql_interpreter:insert %s\n", command + pos));
         msg_length = sql_insert(command, pos, message, msg_length);
         if(msg_length == -1)
         {
@@ -431,18 +501,23 @@ int sql_interpreter(U8bit * command, U8bit * message)
     }else if(is_token(sql_word,(U8bit *) UPDATE_STR) == 0)
     {
         // Update
-        message[0] = UPDATE_CODE;
+        command_code = UPDATE_CODE;
+        write_to_message(message, &msg_length, &command_code, CLIENT_U_8_BIT_SIZE);
+        // Update analyze
+        msg_length = sql_update(command, pos, message, msg_length);
     }else if(is_token(sql_word,(U8bit *) DELETE_STR) == 0)
     {
         // Delete
-        message[0] = DELETE_CODE;
+        command_code = DELETE_CODE;
+        write_to_message(message, &msg_length, &command_code, CLIENT_U_8_BIT_SIZE);
+        // Delete analyze
+        msg_length = sql_delete(command, pos, message, msg_length);
     }else
     {
         // Error
         CLI_TRACE(("CLIENT:sql_interpreter:Not found command!\n"));
         return -1;
     }
-
 
     return msg_length;
 }

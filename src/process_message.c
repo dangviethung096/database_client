@@ -27,27 +27,35 @@ int process_message_ret_search(U8bit * msg)
     read_message(msg, &pos, &num_ret, CLIENT_U_8_BIT_SIZE);
     read_message(msg, &pos, &num_field, CLIENT_U_8_BIT_SIZE);
     printf("Client: return value:\n");
-    for(i = 0; i < num_ret; i++)
+    if(num_ret == 0)
     {
-        printf("Row %d\n", i+1);
-        for(j = 0; j < num_field; j++)
+        printf("No resutl for query!");
+    }else
+    {
+        // Get all return value
+        for(i = 0; i < num_ret; i++)
         {
-            U8bit field[MAX_LENGTH_FIELD];
-            U8bit value[MAX_LENGTH_VALUE];
-            U8bit field_length, val_length;
-            // Read field length
-            read_message(msg, &pos, &field_length, CLIENT_U_8_BIT_SIZE);
-            // Read field
-            read_message(msg, &pos, field, field_length);
-            field[field_length] = '\0';
-            // Read val length
-            read_message(msg, &pos, &val_length, CLIENT_U_8_BIT_SIZE);
-            // Read value
-            read_message(msg, &pos, value, val_length);
-            value[val_length] = '\0';
-            printf("%s=%s\n", field, value);
+            printf("Row %d\n", i+1);
+            for(j = 0; j < num_field; j++)
+            {
+                U8bit field[MAX_LENGTH_FIELD];
+                U8bit value[MAX_LENGTH_VALUE];
+                U8bit field_length, val_length;
+                // Read field length
+                read_message(msg, &pos, &field_length, CLIENT_U_8_BIT_SIZE);
+                // Read field
+                read_message(msg, &pos, field, field_length);
+                field[field_length] = '\0';
+                // Read val length
+                read_message(msg, &pos, &val_length, CLIENT_U_8_BIT_SIZE);
+                // Read value
+                read_message(msg, &pos, value, val_length);
+                value[val_length] = '\0';
+                printf("%s=%s\n", field, value);
+            }
         }
     }
+    
 
 
     return 1;
@@ -69,11 +77,26 @@ int process_message_ret_insert(U8bit * msg)
     return 1;
 }
 
+int process_message_ret_delete(U8bit * msg)
+{
+    int pos = 0;
+    U8bit ret_info[MAX_LENGTH_MSG];
+    U8bit length_info = 0;
+    // Read length of info
+    read_message(msg, &pos, &length_info, CLIENT_U_8_BIT_SIZE);
+    // Read info
+    read_message(msg, &pos, ret_info, length_info);
+    ret_info[length_info] = '\0';
+    printf("Message from delete operation: %s\n", ret_info);
+    return 1;
+}
+
 int process_message(U8bit * msg, U8bit * ret_msg)
 {
     // int pos = 0;
+    CLI_TRACE(("CLIENT:process_message:msg=%s\n", msg));
     int length_ret_msg;
-    int code_index = msg[0];
+    U8bit code_index = msg[0];
     switch(code_index)
     {
         case COMMAND_CODE:
@@ -86,14 +109,15 @@ int process_message(U8bit * msg, U8bit * ret_msg)
             length_ret_msg = process_message_ret_insert(msg + 1);
             break;
         case RET_DELETE_CODE:
+            length_ret_msg = process_message_ret_delete(msg + 1);
             break;
         case RET_UPDATE_CODE:
             break;
         case ERROR_CODE:
-            printf("Error message, message_code=%d", code_index);
+            printf("Error message, message_code=%d\n", code_index);
             break;
         default:
-            printf("Unknown message, message_code=%d", code_index);
+            printf("Unknown message, message_code=%d\n", code_index);
             length_ret_msg = -1;
             break;
     }

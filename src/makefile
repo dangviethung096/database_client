@@ -4,8 +4,7 @@ CC=gcc
 OBJECT_FILE=client.o sql_interpreter.o process_message.o
 FLAG=-Wall -g
 BIN_PATH={PWD}/../bin
-MACRO_AT_BUILD=
-#-DCLIENT_TRACE_ENABLE
+MACRO_AT_BUILD=-DCLIENT_TRACE_ENABLE
 HEADER_FILE=${LIB_PATH}/client_api.h  ${LIB_PATH}/client_def.h  ${LIB_PATH}/client_struct.h
 all: clean $(OBJECT_FILE)
 	${CC} ${FLAG} ${OBJECT_FILE} -o ${PWD}/../bin/client.out

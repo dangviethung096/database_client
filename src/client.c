@@ -28,7 +28,6 @@ int send_data()
         msg_length = process_message(msg, ret_msg);
         if(msg_length == -1)
         {
-            printf("Error!\n");
             printf("Message: %s\n", msg + 1);
         }else
         {
@@ -38,11 +37,12 @@ int send_data()
             {
                 printf("Error when send!\n");
             }
-            
+            printf("Send %d to %d\n", num_send, client_fd);
             num_rev = recv(client_fd, msg, MAX_LENGTH_MSG, 0);
+            printf("Receive %d from %d\n", num_rev, client_fd);
             if(num_rev > 0)
             {
-                process_message(msg, ret_msg);
+                msg_length = process_message(msg, ret_msg);
             }else
             {
                 printf("Server return nothing!\n");
