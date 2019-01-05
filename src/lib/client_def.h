@@ -47,7 +47,8 @@
 #define INSERT_VALUES_STR   "VALUES"
 
 #define UPDATE_STR          "UPDATE"
-
+#define UPDATE_SET_STR      "SET"
+#define UPDATE_WHERE_STR    "WHERE"
 
 #define DELETE_STR          "DELETE"
 #define DELETE_COND_STR     "WHERE"

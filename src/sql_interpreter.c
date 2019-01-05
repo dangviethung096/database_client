@@ -401,13 +401,122 @@ inline static int sql_update(U8bit * command, int pos, U8bit * message, int msg_
     U8bit word[CLIENT_MAX_WORD];
     word[0] = '\0';
     U8bit length_word = length_string(word);
-    
+    int i;
+    U8bit table_name[CLIENT_MAX_WORD];
+    U8bit length_table_name = 0;
+    U8bit flag = 0;
+    U8bit num_update = 0;
+    U8bit num_count_char = 0;
+    U8bit field_update[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
+    U8bit val_update[CLIENT_MAX_FIELDS_IN_TABLE][CLIENT_MAX_WORD];
     /* Read table_name */
+    pos = sql_get_word(command, pos, word);
+    length_word = length_string(word);
+    for(i = 0; i < length_word; i++)
+    {
+        table_name[length_table_name++] = word[i];
+    }
+    /* Write table name to message */
+    table_name[length_table_name] = '\0';
+    CLI_TRACE(("CLIENT:sql_update:table_name=%s\n", table_name));
+    // Write length of table name
+    write_to_message(message, &msg_length, &length_table_name, CLIENT_U_8_BIT_SIZE);
+    // Write table name
+    write_to_message(message, &msg_length, table_name, length_table_name);
 
     /* Read values will be updated */
+    pos = sql_get_word(command, pos, word);
+    length_word = length_string(word);
+    if(is_token(word,(U8bit *) UPDATE_SET_STR) != 0)
+    {
+        CLI_TRACE(("CLIENT:sql_update:cannot found SET in update!\n"));
+        return -1;
+    }
+    
+    while(!sql_is_end(word))
+    {
+        pos = sql_get_word(command, pos, word);
+        length_word = length_string(word);
+        // Check token WHERE
+        if(is_token(word,(U8bit *) UPDATE_WHERE_STR) == 0)
+        {
+            if(flag == 1)
+            {
+                val_update[num_update][num_count_char] = '\0';
+                CLI_TRACE(("CLIENT:sql_update:val_update[%u]=%s\n", num_update, val_update[num_update]));
+                num_update++;
+            }else
+            {
+                CLI_TRACE(("CLIENT:sql_update:Error with flag=%d\n", flag));
+            }
+
+            break;
+        }
+
+        for(i = 0; i < length_word; i++)
+        {
+            if(flag)
+            {
+                // Set val update
+                if(word[i] == ',' || word[i] == ';')
+                {
+                    val_update[num_update][num_count_char] = '\0';
+                    CLI_TRACE(("CLIENT:sql_update:val_update[%u]=%s\n", num_update, val_update[num_update]));
+                    flag = 0;
+                    num_count_char = 0;
+                    num_update++;
+                }else
+                {
+                    val_update[num_update][num_count_char++] = word[i];
+                }
+            }else
+            {
+                // Set field update
+                if(word[i] == '=')
+                {
+                    field_update[num_update][num_count_char] = '\0';
+                    CLI_TRACE(("CLIENT:sql_update:field_update[%d]=%s\n", num_update, field_update[num_update]));
+                    flag = 1;
+                    num_count_char = 0;
+                }else
+                {
+                    field_update[num_update][num_count_char++] = word[i];
+                }
+            }
+        }
+        
+    }
+    /* Write field and value update to message */
+    // Write number update
+    write_to_message(message, &msg_length, &num_update, CLIENT_U_8_BIT_SIZE);
+    for(i = 0; i < num_update; i++)
+    {
+        // Write length of update field
+        U8bit length_update_field = length_string(field_update[i]);
+        write_to_message(message, &msg_length, &length_update_field, CLIENT_U_8_BIT_SIZE);
+        // Write update field
+        write_to_message(message, &msg_length, field_update[i], length_update_field);
+        // Write length of update value
+        U8bit length_update_val = length_string(val_update[i]);
+        write_to_message(message, &msg_length, &length_update_val, CLIENT_U_8_BIT_SIZE);
+        // Write update val
+        write_to_message(message, &msg_length, val_update[i], length_update_val);
+    }
 
     /* Read conditions */
+    if(is_token(word,(U8bit *) UPDATE_WHERE_STR) == 0)
+    {
+        pos = sql_read_condition(command, pos, message, &msg_length);
+        if(pos == -1)
+        {
+            CLI_TRACE(("CLIENT:sql_update:get condition error"));
+            return -1;
+        }
+    }
     
+    U8bit end = MSG_END;
+    write_to_message(message, &msg_length, &end, CLIENT_U_8_BIT_SIZE);
+    CLI_TRACE(("CLIENT:sql_update:msg_length=%d\n", msg_length));
     return msg_length;
 }
 

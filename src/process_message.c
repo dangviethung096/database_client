@@ -3,21 +3,21 @@
 #include "lib/client_api.h"
 #include <stdio.h>
 
-void read_message(U8bit * message, int * pos, U8bit * val, int size)
+inline static void read_message(U8bit * message, int * pos, U8bit * val, int size)
 {
     memcpy(val, message + *pos, size);
     CLI_TRACE(("CLIENT:read_message:pos=%d, size=%d\n", *pos, size));
     *pos += size;
 }
 
-void write_message(U8bit * message, int * pos, U8bit * val, int size)
+inline static void write_message(U8bit * message, int * pos, U8bit * val, int size)
 {
     memcpy(message + *pos, val, size);
     CLI_TRACE(("CLIENT:write_message:pos=%d, size=%d\n", *pos, size));
     *pos += size;
 }
 
-int process_message_ret_search(U8bit * msg)
+inline static int process_message_ret_search(U8bit * msg)
 {
     int i, j;
     U8bit num_ret;
@@ -55,13 +55,11 @@ int process_message_ret_search(U8bit * msg)
             }
         }
     }
-    
-
 
     return 1;
 }
 
-int process_message_ret_insert(U8bit * msg)
+inline static int process_message_ret_insert(U8bit * msg)
 {
     
     int pos = 0;
@@ -77,7 +75,7 @@ int process_message_ret_insert(U8bit * msg)
     return 1;
 }
 
-int process_message_ret_delete(U8bit * msg)
+inline static int process_message_ret_delete(U8bit * msg)
 {
     int pos = 0;
     U8bit ret_info[MAX_LENGTH_MSG];
@@ -88,6 +86,20 @@ int process_message_ret_delete(U8bit * msg)
     read_message(msg, &pos, ret_info, length_info);
     ret_info[length_info] = '\0';
     printf("Message from delete operation: %s\n", ret_info);
+    return 1;
+}
+
+inline static int process_message_ret_update(U8bit * msg)
+{
+    int pos = 0;
+    U8bit ret_info[MAX_LENGTH_MSG];
+    U8bit length_info = 0;
+    // Read length of info
+    read_message(msg, &pos, &length_info, CLIENT_U_8_BIT_SIZE);
+    // Read info
+    read_message(msg, &pos, ret_info, length_info);
+    ret_info[length_info] = '\0';
+    printf("Message from update operation: %s\n", ret_info);
     return 1;
 }
 
@@ -112,6 +124,7 @@ int process_message(U8bit * msg, U8bit * ret_msg)
             length_ret_msg = process_message_ret_delete(msg + 1);
             break;
         case RET_UPDATE_CODE:
+            length_ret_msg = process_message_ret_update(msg + 1);
             break;
         case ERROR_CODE:
             printf("Error message, message_code=%d\n", code_index);
