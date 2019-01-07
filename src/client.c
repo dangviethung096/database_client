@@ -20,8 +20,10 @@ int send_data()
     memset(msg, 0, BUFFER_SIZE);
     while(compare_n_string(msg + 1, STRING_END_CONNECT, LENGTH_END_CONNECT) != 0)
     {
+        // sleep(1);
         printf("Input command: ");
-        fgets((char *) msg + 1, BUFFER_SIZE, stdin);
+        // fgets((char *) msg + 1, BUFFER_SIZE, stdin);
+        sprintf((char *) (msg+1), "SELECT id FROM student;");
         msg[length_string(msg + 1)] = '\0';
         msg[0] = COMMAND_CODE;
         // Parse command
@@ -69,8 +71,10 @@ int connect_to_server()
     struct sockaddr_in server_address;
     int address_length = sizeof(server_address);
 
-    memset(&server_address, 0, address_length);   
-    char * ip_address = "127.0.0.1" ;
+    memset(&server_address, 0, address_length);
+    // 127.0.0.1
+    // 192.168.1.17   
+    char * ip_address = "192.168.1.17" ;
     int port = 6969;
     server_address.sin_family = AF_INET;
     server_address.sin_addr.s_addr = inet_addr(ip_address);
@@ -90,7 +94,12 @@ int connect_to_server()
 
 int main()
 {
-    connect_to_server();
-    send_data();
+    int i;
+    for(i = 0; i < 100; i++)
+    {
+        connect_to_server();
+        send_data();
+    }
+    
     return 1;
 } 
