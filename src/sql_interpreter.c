@@ -205,7 +205,14 @@ inline static int sql_search(U8bit * command, int pos, U8bit * message, int msg_
         }
 
         pos = sql_get_word(command, pos, word);
+
+        if(sql_is_end(word))
+        {
+            CLI_TRACE(("CLIENT:invalid search command!\n"));
+            return -1;
+        }
     }
+
     columns[num_col][num_char_col] = '\0';
     CLI_TRACE(("CLIENT:sql_search:columns[%d]=%s\n", num_col, columns[num_col]));
     num_col++;
@@ -295,12 +302,9 @@ inline static int sql_insert(U8bit * command, int pos, U8bit * message, int msg_
     word[0] = '\0';
     while(is_token(word,(U8bit *) INSERT_VALUES_STR) != 0)
     {
-        pos = sql_get_word(command, pos, word);
         length_word = length_string(word);
-
         for(i = 0; i < length_word; i++)
         {
-            // CLI_TRACE(("CLIENT:sql_insert:word[%d]=%c\n", i, word[i]));
             if(flag)
             {
                 if(word[i] == ',' || word[i] == ')')
@@ -331,6 +335,13 @@ inline static int sql_insert(U8bit * command, int pos, U8bit * message, int msg_
                 }
             }
             
+        }
+
+        pos = sql_get_word(command, pos, word);
+        if(sql_is_end(word))
+        {
+            CLI_TRACE(("CLIENT:sql_insert:end message, error!\n"));
+            return -1;
         }
     }
     // Write to return message field that will have
@@ -412,10 +423,17 @@ inline static int sql_update(U8bit * command, int pos, U8bit * message, int msg_
     /* Read table_name */
     pos = sql_get_word(command, pos, word);
     length_word = length_string(word);
+    // Check error end
+    if(sql_is_end(word))
+    {
+        return -1;
+    }
+
     for(i = 0; i < length_word; i++)
     {
         table_name[length_table_name++] = word[i];
     }
+
     /* Write table name to message */
     table_name[length_table_name] = '\0';
     CLI_TRACE(("CLIENT:sql_update:table_name=%s\n", table_name));
@@ -486,6 +504,7 @@ inline static int sql_update(U8bit * command, int pos, U8bit * message, int msg_
         }
         
     }
+
     /* Write field and value update to message */
     // Write number update
     write_to_message(message, &msg_length, &num_update, CLIENT_U_8_BIT_SIZE);

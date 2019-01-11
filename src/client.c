@@ -8,6 +8,7 @@
 #include "lib/client_def.h"
 #include "lib/client_api.h"
 
+#define N_CLIENT 10
 
 int client_fd;
 U8bit msg[MAX_LENGTH_MSG];
@@ -28,7 +29,7 @@ int send_data()
         msg_length = process_message(msg, ret_msg);
         if(msg_length == -1)
         {
-            printf("Message: %s\n", msg + 1);
+            printf("Error message: %s\n", msg + 1);
         }else
         {
             // Send a encoded message
