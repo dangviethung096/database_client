@@ -129,6 +129,10 @@ int process_message(U8bit * msg, U8bit * ret_msg)
         case ERROR_CODE:
             printf("Error message, message_code=%d\n", code_index);
             break;
+        case END_CODE:
+            printf("End connection!\n");
+            length_ret_msg = 1;
+            break;
         default:
             printf("Unknown message, message_code=%d\n", code_index);
             length_ret_msg = -1;

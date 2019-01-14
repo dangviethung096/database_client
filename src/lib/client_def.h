@@ -35,6 +35,7 @@
 #define RET_DELETE_CODE     8
 
 #define COMMAND_CODE        10
+#define END_CODE            11
 
 #define ERROR_CODE          15
 
